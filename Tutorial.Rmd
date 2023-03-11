@@ -16,13 +16,35 @@ link-citations: yes
     text-align: right; //align the Search box to center. left and right also valid 
   }
 input[type="search"] {
-  width: 60px; // height: 15px; // margin: 0; // padding: 0;
+  width: 50px; // height: 10px; // margin: 0; // padding: 0;
   font-size: 8px;
 } 
 .dataTables_wrapper .dataTables_paginate .paginate_button{font-size: 11px;padding:0.5em ;text-align:center;padding-top:0.1em; padding-bottom:0.1em;}
-
-
 </style>
+
+
+
+<style type="text/css">
+body{ /* Normal  */
+      font-size: 14px;
+  }
+h1.title {
+  font-size: 38px;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+}
+td {  /* Table  */
+  font-size: 14px;
+}
+</style>
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -160,6 +182,7 @@ tab.test.accu  %>%
 
 Since RF achieves the best prediction accuracy, we report the feature importance table generated with RF.
 
+<div style = "width:70%; height:auto; margin: auto;">
 ```{r, echo = FALSE, warning = FALSE}
 
 
@@ -178,10 +201,11 @@ datatable(res_RF$tab.train.importance,
 
 
 ```
+</div>
 
 Figure of the top 20 important features by RF.
 
-```{r, echo = FALSE, warning = FALSE, fig.align='center'}
+```{r, echo = FALSE, warning = FALSE, fig.align='center', fig.height = 3.5, fig.width = 4.5}
 ## RF
 plot.RF.importance <- res_RF$tab.train.importance[1:20, 1:2]
 colnames(plot.RF.importance) <- c("Feature", "Importance")
@@ -263,7 +287,7 @@ summary.roc <- summary.roc %>%   # add (0, 0), (1, 1) to each model
 summary.roc$model <- factor(summary.roc$model, levels=c("XGBoost", "RF", "ENL", "SVM"))
 ```
 
-```{r, echo = FALSE, warning = FALSE, fig.align='center'}
+```{r, echo = FALSE, warning = FALSE, fig.align='center', fig.height = 3.5, fig.width = 5}
 plot.roc <- ggplot(data=summary.roc, aes(x=fpr, y=mean, group=model, color = model)) +
   geom_path(alpha = 1, size=1, aes(linetype=model)) +
   geom_point() +
@@ -273,7 +297,7 @@ plot.roc <- ggplot(data=summary.roc, aes(x=fpr, y=mean, group=model, color = mod
   theme_classic() +
   annotate('segment',  x = 0, xend = 1, y = 0, yend = 1, size = 0.5, colour = "gray", alpha = 0.7, linetype="dashed") + 
   annotate(geom="text", x=0.5, y=0.2, label=auc.text,
-           color="black", size=4, hjust = 0)
+           color="black", size=3.5, hjust = 0)
 plot.roc
 
 ```
