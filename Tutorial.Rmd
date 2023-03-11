@@ -69,9 +69,9 @@ source('Code_MS/Supplement_functions.R')
 
 
 
-This tutorial aims to provide a frame work of doing binary classification analysis with machine learning methods in multi-omics data. The data and analysis accord with a published paper [@cantoni2022alterations], however some details such as parameter tuning may differ. 
+This tutorial aims to provide a frame work of doing binary classification analysis with machine learning methods and with multi-omics data. The data and analysis accord with a published paper [@cantoni2022alterations], however some details such as parameter tuning may differ. 
 
-For more detail of methods, check the 'code_MS' folder. Notie: tuning grids and parameter setting should be carefully adjusted according to specific projects!
+For more detail of code, check the <span style="color: blue;">'code_MS'</span> folder. <span style="color: red;">Notice</span>: tuning grids and parameter setting should be adjusted according to specific projects!
 
 # The multi-omics data 
 
@@ -104,7 +104,7 @@ Centered log ratio transformation is conducted to otu data.
 
 - Use multi-omics data to make classification on MS / Control.
 
-- Find which features are useful for making MS diagnosis.
+- Find which features are the most useful for making MS diagnosis.
 
 ## Method
 
@@ -115,7 +115,7 @@ Repeatedly run S=100 repeats of the following process:
 * Divide the period A data into train data (80% samples) and test data (10 samples).
 
 
-* With train data, train machine learning models by leave-one-out cross validation:
+* With train data, train machine learning models:
 
   + Conduct marginal screening to all features. 
       + The tests involved are wilcoxon test for integer features; t-test or wilcoxon test for continuous features depending on normality; Fisher's exact test for categorical features. 
@@ -130,10 +130,13 @@ Repeatedly run S=100 repeats of the following process:
   + Change multi-class categorical features to dummy variables.
   
   + Fit models. 
-      + The four competing methods are random forest [@RF], XGBoost [@xgboost], elastic net logistic regression [@glmnet], elastic net svm [@sparseSVM]. Parameter tuning is conducted through CV with classification error treated as model selection criteria. 
+      + The four competing methods are random forest [@RF], XGBoost [@xgboost], elastic net logistic regression [@glmnet], elastic net svm [@sparseSVM]. Parameter tuning is conducted through leave-one-out CV with classification error treated as model selection criteria. 
       + More details of tuning grids for each method can be found from the 'Code_MS' folder.
       
-      
+* Report prediction performance in test data
+  + accuracy (1 - error)
+  + ROC
+  + AUC
 
 **Find which features are useful for making MS diagnosis**
 
