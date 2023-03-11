@@ -1,0 +1,292 @@
+---
+title: 'Classification of Multiple Sclerosis (MS)'
+subtitle: 'with Machine Learning Methods'
+author: 'Zhongmao Liu'
+output: 
+  bookdown::html_document2:
+    toc: true
+    toc_depth: 2
+bibliography: references.bib  
+link-citations: yes
+---
+
+<style>
+  .dataTables_wrapper  .dataTables_filter {
+    float: none;
+    text-align: right; //align the Search box to center. left and right also valid 
+  }
+input[type="search"] {
+  width: 60px; // height: 15px; // margin: 0; // padding: 0;
+  font-size: 8px;
+} 
+.dataTables_wrapper .dataTables_paginate .paginate_button{font-size: 11px;padding:0.5em ;text-align:center;padding-top:0.1em; padding-bottom:0.1em;}
+
+
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(tibble)
+library(data.table)
+library(DT)
+library(kableExtra)
+
+library(showtext)
+font_add("Arial", "/Library/Fonts/Arial.ttf")  # Use the actual file path
+showtext_auto()
+
+source('Code_MS/Supplement_functions.R')
+
+```
+
+
+
+
+This tutorial aims to provide a frame work of doing binary classification analysis with machine learning methods in multi-omics data. The data and analysis accord with a published paper [@cantoni2022alterations], however some details such as parameter tuning may differ. 
+
+For more detail of methods, check the 'code_MS' folder. Notie: tuning grids and parameter setting should be carefully adjusted according to specific projects!
+
+# The multi-omics data 
+
+## Period A Data
+
+The integrated multi-omics data collected at period A contains 52 subjects/samples, where otu data has 46 samples, blood data has 50 samples, immune data has 50 samples, meta data has 52 samples.
+
+- The 1st col is "id" (sample name)
+
+- The 2ed col is "Diagnosis": 26 MS (full name is RRMS) and 26 Control.
+
+- The 3-8859th columns (8857 features) are from "blood" data: serum metabolites from "mz1" to "mz8857"
+
+- The 8860-8902th columns (43 features) are from "meta" data: meta+nutrition features from "Age.at.collection" to "Sugar.Sweetened.Soft.Drinks".
+
+- The 8903-8944th columns (42 features) are from "immune" data: immune cell populations and cytokine profiles from "X.HLADR.pos.active.Myeloid.Cells.Panel4" to "CD4..Tregs.Panel5"
+
+- The 8945-9728th columns (784 features) are from "otu" data.
+
+
+
+## Data pre-processing
+
+Centered log ratio transformation is conducted to otu data.
+
+
+# Diagnosis of MS with period A data
+
+## Object
+
+- Use multi-omics data to make classification on MS / Control.
+
+- Find which features are useful for making MS diagnosis.
+
+## Method
+
+**Train machine learning models to make classification on MS / Control**
+
+Repeatedly run S=100 repeats of the following process:
+
+* Divide the period A data into train data (80% samples) and test data (10 samples).
+
+
+* With train data, train machine learning models by leave-one-out cross validation:
+
+  + Conduct marginal screening to all features. 
+      + The tests involved are wilcoxon test for integer features; t-test or wilcoxon test for continuous features depending on normality; Fisher's exact test for categorical features. 
+      + Besides, Sex does not attend marginal screening and is always involved in model fitting. 
+      + The p values are adjusted by false discovery rate (fdr) control. 
+      + The screening threshold is p < 0.05 for blood data, and p < 0.1 for genus, immune, meta data. 
+  
+  + Fill in NAs. 
+      + NAs from categorical features are replaced by a new class called 'G_NA'.
+      + NAs from numerical features are replaced by group mean (MS / Control) for train data; by mean for test data.
+  
+  + Change multi-class categorical features to dummy variables.
+  
+  + Fit models. 
+      + The four competing methods are random forest [@RF], XGBoost [@xgboost], elastic net logistic regression [@glmnet], elastic net svm [@sparseSVM]. Parameter tuning is conducted through CV with classification error treated as model selection criteria. 
+      + More details of tuning grids for each method can be found from the 'Code_MS' folder.
+      
+      
+
+**Find which features are useful for making MS diagnosis**
+
+* Select the method with the highest out-of-sample prediction accuracy.
+
+* Report feature importance calculated by the selected method.
+    + XGBoost: Gain
+    + RF: mean decrease gini
+    + ENL and SVM: frequency of selection
+    
+     
+## Result
+
+```{r, echo = FALSE, warning = FALSE}
+# Load results
+
+res_ENL = get(load("Result_MS/ENL.rda"))
+res_SVM = get(load("Result_MS/SVM.rda"))
+res_RF = get(load("Result_MS/RF.rda"))
+res_XGBoost = get(load("Result_MS/XGBoost.rda"))
+
+```
+
+### Prediction accuracy on test data
+
+RF achieves the highest out-of-sample prediction accuracy. 
+
+```{r, echo = FALSE, warning = FALSE}
+
+# Test Accuracy
+tab.test.accu = rbind(
+  res_XGBoost$tab.test.accu,
+  res_RF$tab.test.accu,
+  res_ENL$tab.test.accu,
+  res_SVM$tab.test.accu
+)
+
+tab.test.accu  %>%
+  kbl(caption = 'Prediction Accuracy on test data', 
+      digits = 3) %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+### Feature importance from train data
+
+Since RF achieves the best prediction accuracy, we report the feature importance table generated with RF.
+
+```{r, echo = FALSE, warning = FALSE}
+
+
+## Selected Features by RF
+
+datatable(res_RF$tab.train.importance, 
+          options = list(
+            autowidth = FALSE,
+            columnDefs = list(list(width = '150px', targets = c(0)),
+                              list(width = '150px', targets = c(1, 2)),
+                              list(className = 'dt-center', targets = 0:2)),
+            pageLength = 10
+          ), 
+          rownames = FALSE, 
+          caption = paste("Table: feature importance (mean decrease gini) by random forest "))
+
+
+```
+
+Figure of the top 20 important features by RF.
+
+```{r, echo = FALSE, warning = FALSE, fig.align='center'}
+## RF
+plot.RF.importance <- res_RF$tab.train.importance[1:20, 1:2]
+colnames(plot.RF.importance) <- c("Feature", "Importance")
+plot.RF.importance$Feature[plot.RF.importance$Feature == "CD4..Tbet..memory.T.cells.PB"] <- "CD4+Memory T cells"
+level_order <- rev(plot.RF.importance$Feature)
+rfplot <- ggplot(plot.RF.importance, aes(x=factor(Feature, levels= level_order), y=Importance, color = Importance)) + 
+  geom_point(size=2) +   # Draw points
+  geom_segment(aes(x=Feature, 
+                   xend=Feature, 
+                   y=min(Importance), 
+                   yend=max(Importance)), 
+               linetype="dotted", 
+               size=0.1,
+               color = "black") +   # Draw dashed lines
+  labs(title="Feature importance", 
+       subtitle="Random forest",
+       x="Feature",
+       y="Importance",
+       color = "Cylinders") +  
+  guides(color = FALSE) +  # do not show legend
+  coord_flip()+
+  theme_classic()
+
+rfplot
+
+# ## ENL
+# plot.ENL.importance <- res_ENL$tab.train.importance[1:20, 1:2]
+# colnames(plot.ENL.importance) <- c("Feature", "Importance")
+# plot.ENL.importance$Feature[plot.ENL.importance$Feature == "CD4..Tbet..memory.T.cells.PB"] <- "CD4+Memory T cells"
+# level_order <- rev(as.factor(as.character(plot.ENL.importance$Feature)))
+# ggplot(plot.ENL.importance, aes(x=factor(Feature, levels= level_order), 
+#                                y=Importance)) + 
+#   geom_point(size=2, aes(color=factor(Importance))) +   # Draw points
+#   geom_segment(aes(x=Feature, 
+#                    xend=Feature, 
+#                    y=min(Importance), 
+#                    yend=max(Importance)), 
+#                linetype="dotted", 
+#                size=0.1) +   # Draw dashed lines
+#   labs(title="Feature importance", 
+#        subtitle="ENL",
+#        x="Feature",
+#        y="Importance") +  
+#   guides(color = FALSE) +  # do not show legend
+#   coord_flip()+
+#   theme_classic()
+
+```
+
+
+### ROC Plot
+
+Mean ROC curve with annotation of median AUC & 90% AUC CI.
+
+```{r, echo = FALSE, warning = FALSE, include=FALSE}
+
+## Calculate AUC mean & CI for each model
+ci.XGBoost <-f.aucci(data.roc = res_XGBoost$tab.test.roc, model="XGBoost")
+ci.RF <-f.aucci(data.roc = res_RF$tab.test.roc, model="RF")
+ci.ENL <-f.aucci(data.roc = res_ENL$tab.test.roc, model="ENL")
+ci.SVM <-f.aucci(data.roc = res_SVM$tab.test.roc, model="SVM")
+auc.text = c(paste("XGBoost:", ci.XGBoost[1], "(", ci.XGBoost[2], ",", ci.XGBoost[3], ")\nRF:",
+                   ci.RF[1], "(", ci.RF[2], ",", ci.RF[3], ")\nENL:",
+                   ci.ENL[1], "(", ci.ENL[2], ",", ci.ENL[3], ")\nSVM:",
+                   ci.SVM[1], "(", ci.SVM[2], ",", ci.SVM[3], ")") )
+
+## Test AUC Plot
+roc.all = rbind(
+  do.call('rbind', res_XGBoost$tab.test.roc),
+  do.call('rbind', res_RF$tab.test.roc),
+  do.call('rbind', res_ENL$tab.test.roc),
+  do.call('rbind', res_SVM$tab.test.roc)
+)
+summary.roc <- roc.all %>% group_by(type, fpr) %>% summarise(mean=mean(tpr)) %>% rename(model=type) %>% ungroup()
+summary.roc <- summary.roc %>%   # add (0, 0), (1, 1) to each model
+  group_by(model) %>%
+  do(tibble::add_row(., model = unique(.$model), fpr = 0, mean = 0, .before = 1)) %>%
+  do(tibble::add_row(., model = unique(.$model), fpr = 1, mean = 1)) %>% ungroup()
+summary.roc$model <- factor(summary.roc$model, levels=c("XGBoost", "RF", "ENL", "SVM"))
+```
+
+```{r, echo = FALSE, warning = FALSE, fig.align='center'}
+plot.roc <- ggplot(data=summary.roc, aes(x=fpr, y=mean, group=model, color = model)) +
+  geom_path(alpha = 1, size=1, aes(linetype=model)) +
+  geom_point() +
+  labs(title="Mean ROC Curve",
+       x="False positive rate",
+       y="True positive rate") + xlim(c(0,1)) + ylim(c(0,1)) +
+  theme_classic() +
+  annotate('segment',  x = 0, xend = 1, y = 0, yend = 1, size = 0.5, colour = "gray", alpha = 0.7, linetype="dashed") + 
+  annotate(geom="text", x=0.5, y=0.2, label=auc.text,
+           color="black", size=4, hjust = 0)
+plot.roc
+
+```
+
+
+# Reference
+
+
+
+
+
+
+
+
+
+
